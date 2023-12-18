@@ -65,6 +65,78 @@ fn julia_escape(p: vec2<f32>, c: float2, max_iter: u32) -> u32 {
   return max_iter;
 }
 
+struct State {
+  offset: vec2f,
+  scale: f32,
+  control: vec2<f32>,
+}
+
+#storage global_state State
+
+@compute @workgroup_size(1, 1)
+#dispatch_once init
+fn init() {
+  global_state.scale = 1.0;
+  global_state.offset = vec2f(0., 0.);
+  global_state.control = vec2f(0.272, 0.0);
+}
+
+
+const key_i = 73u;
+const key_k = 75u;
+const key_j = 74u;
+const key_l = 76u;
+const key_w = 87u;
+const key_s = 83u;
+const key_a = 65u;
+const key_d = 68u;
+
+#workgroup_count update_state 1 1 1
+@compute @workgroup_size(1, 1)
+fn update_state() {
+  let ratio = 1.004;
+  var faster = 1.0;
+  if keyDown(16) {
+    faster = 10.0;
+  }
+  /* - */
+  if keyDown(189) {
+    global_state.scale /= pow(ratio, faster);
+  }
+  /* = * /
+  if keyDown(187) {
+    global_state.scale *= pow(ratio, faster);
+  }
+
+  let step = 0.008 * faster / global_state.scale;
+  if keyDown(key_w) {
+    global_state.offset += vec2f(0., step);
+  }
+  if keyDown(key_s) {
+    global_state.offset += vec2f(0., -step);
+  }
+  if keyDown(key_a) {
+    global_state.offset += vec2f(-step, 0.);
+  }
+  if keyDown(key_d) {
+    global_state.offset += vec2f(step, 0.);
+  }
+
+  let refine = 0.001 * faster / global_state.scale;
+
+  if keyDown(key_i) {
+    global_state.control += vec2f(0., refine);
+  }
+  if keyDown(key_k) {
+    global_state.control += vec2f(0., -refine);
+  }
+  if keyDown(key_j) {
+    global_state.control += vec2f(-refine, 0.);
+  }
+  if keyDown(key_l) {
+    global_state.control += vec2f(refine, 0.);
+  }
+}
 
 @compute @workgroup_size(16, 16)
 fn main_image(@builtin(global_invocation_id) id: uint3) {
@@ -74,23 +146,26 @@ fn main_image(@builtin(global_invocation_id) id: uint3) {
 
     // Prevent overdraw for workgroups on the edge of the viewport
   if id.x >= screen_size.x || id.y >= screen_size.y { return; }
+  let narrow = f32(min(screen_size.x, screen_size.y));
+  let x = (f32(id.x) - f32(screen_size.x) * 0.5) / narrow * 20.;
+  let y = -(f32(id.y) - f32(screen_size.y) * 0.5) / narrow * 20.;
 
-    // Mandelbrot region
-  let p0 = float2(-3, -3 * ratio);
-  let p1 = float2(3, 3 * ratio);
-  let d = (p1 - p0) / float2(screen_size.xy);
+    // if abs(x) < 0.02 || abs(y) < 0.02 {
+    //   textureStore(screen, id.xy, float4(1.0, 1., 1., 1.));
+    //   return;
+    // }
+    // let r = length(vec2f(x,y));
+    // if r < 10. && r > 9.88 {
+    //   textureStore(screen, id.xy, float4(1.0, 1., 1., 1.));
+    //   return;
+    // }
 
-  let x = f32(mouse.pos.x) + 96.;
-  let y = f32(mouse.pos.y) + 36.;
+    // if distance(vec2f(x,y), vec2f(5., 5.)) < 0.2 {
+    //   textureStore(screen, id.xy, float4(1.0, 1., 1., 1.));
+    //   return;
+    // }
 
-  let control = vec2(
-    x - 0.5 * f32(screen_size.x),
-    y - 0.5 * f32(screen_size.y)
-  ) * 0.004;
-
-  let uv = p0 + float2(id.xy) * d;
-
-  let escape_steps = julia_escape(uv, control, 1000);
+  let escape_steps = julia_escape(vec2f(x, y) * 0.1 / global_state.scale + global_state.offset, global_state.control, 500);
   let v = f32(escape_steps) * 0.001;
   let col = hsl(
     fract(0.6 + v * 70.), 0.5 + v * 0.5, fract(0.5 + v * 4.0)

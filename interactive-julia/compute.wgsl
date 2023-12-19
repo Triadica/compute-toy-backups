@@ -69,16 +69,19 @@ struct State {
   offset: vec2f,
   scale: f32,
   control: vec2<f32>,
+  delta_time: f32,
+  cached_elapsed: f32,
 }
 
 #storage global_state State
 
-@compute @workgroup_size(1, 1)
+@compute @workgroup_size(1, 1, 1)
 #dispatch_once init
 fn init() {
   global_state.scale = 1.0;
   global_state.offset = vec2f(0., 0.);
   global_state.control = vec2f(0.272, 0.0);
+  global_state.cached_elapsed = time.elapsed;
 }
 
 
@@ -95,7 +98,9 @@ const key_d = 68u;
 @compute @workgroup_size(1, 1)
 fn update_state() {
   let ratio = 1.004;
-  var faster = 1.0;
+  let dt = time.elapsed - global_state.cached_elapsed;
+  global_state.cached_elapsed = time.elapsed;
+  var faster = 40.0 * dt;
   if keyDown(16) {
     faster = 10.0;
   }
@@ -122,7 +127,7 @@ fn update_state() {
     global_state.offset += vec2f(step, 0.);
   }
 
-  let refine = 0.001 * faster / global_state.scale;
+  let refine = 0.0002 * faster / global_state.scale;
 
   if keyDown(key_i) {
     global_state.control += vec2f(0., refine);

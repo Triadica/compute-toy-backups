@@ -57,7 +57,7 @@ fn initialization() {
     global_state.lines_size = c + 1u;
   }
 
-  for (var j = 0u; j < 5u; j ++) {
+  for (var j = 0u; j < 4u; j ++) {
     let r_x = rand11(f32(j)) - 0.5;
     let r_y = rand11(f32(j) + 0.5) - 0.5;
     var base = vec3f(r_x * 200., 0., r_y * 200.);
@@ -71,7 +71,7 @@ fn initialization() {
     global_state.lines[c + 1] = Line(base, normalize(vec3f(0., 1., 0.)), 1., base + vec3f(0., 1., 0.) * 40., 0.4);
     global_state.lines_size = c + 2u;
 
-    for (var i = 0u; i < 50u; i++) {
+    for (var i = 0u; i < 40u; i++) {
       c = global_state.lines_size;
       let move_down = 0.4 * f32(i);
       let main = base + vec3f(0., 40. - move_down, 0.);
@@ -87,10 +87,55 @@ fn initialization() {
   }
 }
 
+const KEY_W = 87u;
+const KEY_A = 65u;
+const KEY_S = 83u;
+const KEY_D = 68u;
+
+const KEY_I = 73u;
+const KEY_J = 74u;
+const KEY_K = 75u;
+const KEY_L = 76u;
+
+
+#workgroup_count update_camera 1 1 1
 @compute @workgroup_size(1, 1)
 fn update_camera() {
-  let angle = time.elapsed * ROTATE_SPEED;
-  global_state.camera = calculate_camera(angle);
+  let forward = global_state.camera.forward;
+  let upward = global_state.camera.upward;
+  let right = normalize(cross(forward, upward));
+  let v_move = 0.008;
+  let v_pos = 0.001;
+  let v_angle = 0.00002;
+  if keyDown(KEY_W) {
+    global_state.camera.origin += forward * time.elapsed * v_move;
+  }
+  if keyDown(KEY_S) {
+    global_state.camera.origin -= forward * time.elapsed * v_move;
+  }
+
+  if keyDown(KEY_A) {
+    let angle = -v_angle * time.elapsed;
+    let next_f = forward * cos(angle) + right * sin(angle);
+    global_state.camera.forward = next_f;
+  }
+  if keyDown(KEY_D) {
+    let angle = v_angle * time.elapsed;
+    let next_f = forward * cos(angle) + right * sin(angle);
+    global_state.camera.forward = next_f;
+  }
+  if keyDown(KEY_I) {
+    global_state.camera.origin += upward * time.elapsed * v_pos;
+  }
+  if keyDown(KEY_K) {
+    global_state.camera.origin -= upward * time.elapsed * v_pos;
+  }
+  if keyDown(KEY_J) {
+    global_state.camera.origin -= right * time.elapsed * v_pos;
+  }
+  if keyDown(KEY_L) {
+    global_state.camera.origin += right * time.elapsed * v_pos;
+  }
 }
 
 @compute @workgroup_size(16, 16)
@@ -160,7 +205,7 @@ fn main_image(@builtin(global_invocation_id) id: vec3u) {
     }
 
     if l > 300. {
-      color = mix(color, vec4f(1., 1., 1., 1.), 0.02);
+      color = mix(color, vec4f(1., 1., 1., 1.), 0.1);
     } else {
       color = mix(color, vec4f(1., 1., 1., 1.), 0.5);
     }

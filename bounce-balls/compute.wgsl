@@ -20,7 +20,7 @@ struct GlobalState {
 #storage global_state GlobalState
 
 const DISTANCE_EYE_ORIGIN: f32 = 40.0;
-const OBJECTS_SIZE = 200u;
+const OBJECTS_SIZE = 240u;
 
 // On generating random numbers, with help of y= [(a+x)sin(bx)] mod 1", W.J.J. Rey, 22nd European Meeting of Statisticians 1998
 fn rand11(n: f32) -> f32 { return fract(sin(n) * 43758.5453123); }
@@ -50,8 +50,8 @@ fn initialization() {
   var c: u32 = 0u;
   for (var i = 0u; i < OBJECTS_SIZE; i++) {
     c = global_state.objects_size;
-    let v = fibo_grid_n(i, OBJECTS_SIZE);
-    global_state.bounce_balls[c] = Bounce(vec3f(0., 100., 0.), v, 2.);
+    let v = fibo_grid_n(i, OBJECTS_SIZE) * 4.;
+    global_state.bounce_balls[c] = Bounce(vec3f(0., 100., 0.), v, 1.);
     global_state.objects_size = c + 1u;
   }
 }
@@ -110,10 +110,27 @@ fn update_camera() {
 @compute @workgroup_size(1, 1)
 fn move_balls() {
   let total = global_state.objects_size;
+  let a = vec3f(0., -0.004, 0.);
+
+  let c0 = vec3f(0., 50., 0.);
+  let r0 = 150.;
+
   for (var i = 0u; i < total; i++) {
     let ball = global_state.bounce_balls[i];
-    let next_pos = ball.start + ball.direction * 0.03;
-    global_state.bounce_balls[i].start = next_pos;
+    let next_pos = ball.start + ball.direction * 0.03 * time.elapsed;
+
+    if abs(distance(next_pos, c0)) >= r0 {
+            // quite inaccurate anyway....
+      let pointer = normalize(next_pos - c0) * r0;
+      let reverted_direction = normalize(c0 - pointer);
+      let v_perp = dot(ball.direction, reverted_direction) * reverted_direction;
+      let v_hori = ball.direction - v_perp;
+      let next_v = v_hori * 0.96 - v_perp * 0.88;
+      global_state.bounce_balls[i].direction = next_v;
+    } else {
+      global_state.bounce_balls[i].start = next_pos;
+      global_state.bounce_balls[i].direction += a * time.elapsed;
+    }
   }
 }
 
